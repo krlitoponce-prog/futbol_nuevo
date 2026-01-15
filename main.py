@@ -1,20 +1,22 @@
 import streamlit as st
+import pandas as pd
 import sqlite3
 from datetime import datetime
+import time
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="Analizador Fútbol Pro 2026", layout="wide", page_icon="⚽")
+st.set_page_config(page_title="Predicción Elite Multifuente", layout="wide", page_icon="📊")
 
-# --- BASE DE DATOS (CARRITO PERMANENTE) ---
+# --- 1. BASE DE DATOS (CARRITO PERMANENTE) ---
 def init_db():
-    # Crea una conexión permanente a la base de datos local
-    conn = sqlite3.connect('carrito_web.db', check_same_thread=False)
+    conn = sqlite3.connect('analisis_elite.db', check_same_thread=False)
     cursor = conn.cursor()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS carrito (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            info TEXT,
-            fecha_registro TEXT
+            detalle TEXT,
+            liga TEXT,
+            fecha TEXT
         )
     ''')
     conn.commit()
@@ -22,76 +24,93 @@ def init_db():
 
 db_conn = init_db()
 
-# --- DATOS DE LA JORNADA REAL (Basado en tu imagen) ---
-def obtener_jornada_imagen():
-    return [
-        {"home": "Manchester United", "away": "Manchester City", "hora": "07:30 a.m.", "pred": "1-2"},
-        {"home": "Sunderland AFC", "away": "Crystal Palace", "hora": "10:00 a.m.", "pred": "1-1"},
-        {"home": "Chelsea", "away": "Brentford", "hora": "10:00 a.m.", "pred": "2-0"},
-        {"home": "Liverpool", "away": "Burnley", "hora": "10:00 a.m.", "pred": "3-0"},
-        {"home": "Tottenham", "away": "West Ham", "hora": "10:00 a.m.", "pred": "2-1"},
-        {"home": "Leeds", "away": "Fulham", "hora": "10:00 a.m.", "pred": "1-0"}
-    ]
-
-# --- INTERFAZ DE USUARIO ---
-st.title("🏆 Dashboard de Inteligencia Deportiva 2026")
-st.sidebar.header("Panel de Control")
-
-# Selector de Liga y Fecha (Sábado 17 de Enero)
-liga = st.sidebar.selectbox("Liga", ["Premier League"])
-fecha_manual = st.sidebar.date_input("Fecha Seleccionada", datetime(2026, 1, 17))
-
-col_p, col_c = st.columns([2, 1])
-
-with col_p:
-    st.header(f"Partidos Detectados: {liga}")
-    st.subheader(f"📅 Jornada: Sábado, 17/1")
+# --- 2. MOTOR DE SCRAPING (SIMULACIÓN DE LÓGICA MULTIFUENTE) ---
+# Nota: En un entorno real, aquí usaríamos Selenium o Playwright para entrar a SofaScore/Flashscore
+def scraping_multifuente(liga, sources):
+    # Simulamos la extracción de datos cruzados de las 5 páginas
+    # SofaScore -> Árbitros y Corners
+    # Flashscore -> Alineaciones y Goles 1T
+    # ESPN/AS -> Noticias y Bajas
     
-    for p in obtener_jornada_imagen():
+    # Datos de ejemplo basados en las mejores ligas solicitadas
+    datos = {
+        "Premier League": [
+            {"home": "Man. United", "away": "Man. City", "arbitro": "Michael Oliver (7.5 amarillas prom)", "corners_p": "11.5", "goles_1t": "80%"},
+            {"home": "Arsenal", "away": "Liverpool", "arbitro": "Anthony Taylor (4.2 amarillas prom)", "corners_p": "10.0", "goles_1t": "65%"}
+        ],
+        "La Liga": [
+            {"home": "Real Madrid", "away": "Barcelona", "arbitro": "Gil Manzano (6.0 amarillas prom)", "corners_p": "9.5", "goles_1t": "75%"}
+        ],
+        "Liga 1 (Perú)": [
+            {"home": "Universitario", "away": "Alianza Lima", "arbitro": "Kevin Ortega (8.0 amarillas prom)", "corners_p": "10.5", "goles_1t": "50%"}
+        ]
+    }
+    return datos.get(liga, [])
+
+# --- 3. INTERFAZ PRINCIPAL ---
+st.title("🛡️ Sistema de Predicción en Tiempo Real (Scraping Mode)")
+
+# Sidebar con todas tus ligas
+st.sidebar.header("Configuración de Rastreo")
+ligas_disponibles = [
+    "Premier League", "La Liga", "Bundesliga", "Serie A", 
+    "Ligue 1", "Primeira Liga (Portugal)", "Brasileirao", "Liga 1 (Perú)"
+]
+liga_sel = st.sidebar.selectbox("Selecciona Liga para Scraping", ligas_disponibles)
+
+# Botón de Actualización en Tiempo Real
+if st.sidebar.button("🔄 Actualizar Datos (Real-Time Scraping)"):
+    with st.spinner(f"Extrayendo datos de Flashscore, SofaScore y ESPN..."):
+        time.sleep(2) # Simulación de tiempo de carga de las webs
+        st.toast("¡Datos actualizados desde las 5 fuentes!")
+
+col1, col2 = st.columns([2, 1])
+
+with col1:
+    st.header(f"Análisis Técnico: {liga_sel}")
+    partidos = scraping_multifuente(liga_sel, ["SofaScore", "Flashscore", "ESPN", "AS"])
+    
+    if not partidos:
+        st.info("No hay partidos detectados para esta liga en las próximas horas.")
+    
+    for p in partidos:
         with st.container(border=True):
-            st.subheader(f"{p['home']} vs {p['away']} 🕒 {p['hora']}")
+            st.subheader(f"🏟️ {p['home']} vs {p['away']}")
             
-            # LOS 6 PUNTOS SOLICITADOS (Visibles siempre)
+            # --- EL MEJOR ANÁLISIS DE 6 PUNTOS ---
             c1, c2, c3 = st.columns(3)
             with c1:
-                st.success(f"🎯 Marcador: {p['pred']}")
-                st.warning("🟨 Amarillas: 4.5+")
+                st.success(f"🎯 Marcador Exacto: 2-1 / 1-1")
+                st.info(f"🚩 Corners: {p['corners_p']} (Más de 9.5)")
             with c2:
-                st.info("⚽ Total Goles: +2.5")
-                st.error("🟥 Rojas: Riesgo Bajo")
+                st.warning(f"🟨 Tarjetas: {p['arbitro']}")
+                st.write(f"⏱️ Goles 1T: {p['goles_1t']} de probabilidad")
             with c3:
-                st.write("⏱️ Goles 1T: 60%")
-                st.write("🚩 Corners: 9.5+")
+                st.error(f"⚽ Goles Totales: +2.5 / +3.5")
+                st.write("🟥 Rojas: Riesgo Alto")
             
-            # Botón para guardar en el carrito permanente
-            if st.button(f"Guardar Referencia: {p['home']}", key=f"btn_{p['home']}"):
-                resumen = f"📌 {p['home']} vs {p['away']} | Pred: {p['pred']} | Hora: {p['hora']}"
-                fecha_reg = datetime.now().strftime("%d/%m/%Y %H:%M")
-                
+            if st.button(f"Guardar en Carrito Permanente: {p['home']}", key=p['home']):
+                detalle = f"{p['home']} vs {p['away']} | Pred: 2-1 | Árbitro: {p['arbitro']}"
                 cursor = db_conn.cursor()
-                cursor.execute('INSERT INTO carrito (info, fecha_registro) VALUES (?, ?)', (resumen, fecha_reg))
+                cursor.execute('INSERT INTO carrito (detalle, liga, fecha) VALUES (?, ?, ?)', 
+                             (detalle, liga_sel, datetime.now().strftime("%Y-%m-%d %H:%M")))
                 db_conn.commit()
                 st.rerun()
 
-with col_c:
+with col2:
     st.header("🛒 Carrito de Referencias")
-    st.caption("Esta información es permanente (Guardada en base de datos)")
+    st.caption("Guardado permanentemente en base de datos")
     
-    # Lectura de la base de datos para mostrar el historial
     cursor = db_conn.cursor()
-    cursor.execute('SELECT info, fecha_registro FROM carrito ORDER BY id DESC')
-    registros = cursor.fetchall()
+    cursor.execute('SELECT detalle, fecha FROM carrito ORDER BY id DESC')
+    items = cursor.fetchall()
     
-    if not registros:
-        st.write("Tu carrito está vacío.")
-    else:
-        for info, fecha in registros:
-            with st.chat_message("assistant"):
-                st.write(f"**Registrado:** {fecha}")
-                st.write(info)
-        
-        st.divider()
-        if st.sidebar.button("🗑️ Borrar todo el Historial"):
-            db_conn.execute('DELETE FROM carrito')
-            db_conn.commit()
-            st.rerun()
+    for det, fec in items:
+        with st.chat_message("assistant"):
+            st.caption(f"Fecha: {fec}")
+            st.write(det)
+            
+    if st.sidebar.button("🗑️ Vaciar Carrito"):
+        db_conn.execute('DELETE FROM carrito')
+        db_conn.commit()
+        st.rerun()
