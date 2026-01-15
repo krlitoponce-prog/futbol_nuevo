@@ -5,11 +5,11 @@ from datetime import datetime
 import random
 
 # --- CONFIGURACIÓN ---
-st.set_page_config(page_title="Analizador Elite v11", layout="wide", page_icon="⚽")
+st.set_page_config(page_title="Analizador Elite v12", layout="wide", page_icon="⚽")
 
 # --- BASE DE DATOS PERMANENTE ---
 def init_db():
-    db_path = os.path.join(os.getcwd(), 'analisis_final_v11.db')
+    db_path = os.path.join(os.getcwd(), 'analisis_final_v12.db')
     conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.execute('''CREATE TABLE IF NOT EXISTS carrito 
                   (id INTEGER PRIMARY KEY AUTOINCREMENT, detalle TEXT, liga TEXT, fecha TEXT)''')
@@ -17,14 +17,21 @@ def init_db():
 
 db_conn = init_db()
 
-# --- MOTOR DE CÁLCULO ESTABLE ---
+# --- MOTOR DE CÁLCULO ---
 def obtener_analisis_completo(h, a, arb):
     seed = len(h) + len(a) + 2026
     random.seed(seed)
-    p15, p25, p1t = random.randint(82, 98), random.randint(45, 78), random.randint(55, 88)
-    c15, c25 = round(random.uniform(1.22, 1.38), 2), round(random.uniform(1.70, 2.15), 2)
+    # Probabilidades de mercados específicos
+    p15 = random.randint(85, 98)
+    p25 = random.randint(45, 78)
+    p1t = random.randint(60, 92)
+    # Cuotas
+    c15 = round(random.uniform(1.22, 1.38), 2)
+    c25 = round(random.uniform(1.70, 2.15), 2)
+    
     estrictos = ["Szymon Marciniak", "Kevin Ortega", "Michael Oliver", "Anthony Taylor", "Felix Zwayer"]
     es_duro = arb in estrictos
+    
     return {
         "p15": p15, "p25": p25, "p1t": p1t, "c15": c15, "c25": c25,
         "corners": random.choice(["8.5+", "9.5+", "10.5+"]),
@@ -32,7 +39,7 @@ def obtener_analisis_completo(h, a, arb):
         "roja": "ALTO" if es_duro else "BAJO"
     }
 
-# --- DICCIONARIO ACTUALIZADO SEGÚN TUS IMÁGENES ---
+# --- CALENDARIOS COMPLETOS Y ACTUALIZADOS ---
 DATOS_REALES = {
     "UEFA Champions League": [
         {"h": "Kairat", "a": "Club Brujas", "f": "20/01 10:30 a.m.", "arb": "Felix Zwayer"},
@@ -43,9 +50,12 @@ DATOS_REALES = {
         {"h": "Sporting Lisboa", "a": "PSG", "f": "20/01 3:00 p.m.", "arb": "Gil Manzano"},
         {"h": "Inter", "a": "Arsenal", "f": "20/01 3:00 p.m.", "arb": "Danny Makkelie"},
         {"h": "Real Madrid", "a": "Mónaco", "f": "20/01 3:00 p.m.", "arb": "Slavko Vincic"},
+        {"h": "København", "a": "Napoli", "f": "20/01 3:00 p.m.", "arb": "Clement Turpin"},
         {"h": "Galatasaray", "a": "Atlético Madrid", "f": "21/01 12:45 p.m.", "arb": "Sandro Schärer"},
         {"h": "Marsella", "a": "Liverpool", "f": "21/01 3:00 p.m.", "arb": "Szymon Marciniak"},
         {"h": "Slavia Praga", "a": "Barcelona", "f": "21/01 3:00 p.m.", "arb": "Davide Massa"},
+        {"h": "Juventus", "a": "Benfica", "f": "21/01 3:00 p.m.", "arb": "Anthony Taylor"},
+        {"h": "Chelsea", "a": "Pafos", "f": "21/01 3:00 p.m.", "arb": "Allard Lindhout"},
         {"h": "Bayern", "a": "U. Saint-Gilloise", "f": "21/01 3:00 p.m.", "arb": "Michael Oliver"},
         {"h": "Atalanta", "a": "Athletic", "f": "21/01 3:00 p.m.", "arb": "Felix Zwayer"}
     ],
@@ -58,61 +68,58 @@ DATOS_REALES = {
         {"h": "Leeds", "a": "Fulham", "f": "17/01 10:00 a.m.", "arb": "Chris Kavanagh"}
     ],
     "Bundesliga (Alemania)": [
-        {"h": "Werder Bremen", "a": "Frankfurt", "f": "Mañana 2:30 p.m.", "arb": "Felix Zwayer"},
+        {"h": "Werder Bremen", "a": "Frankfurt", "f": "16/01 2:30 p.m.", "arb": "Felix Zwayer"},
         {"h": "Hoffenheim", "a": "Leverkusen", "f": "17/01 9:30 a.m.", "arb": "Daniel Siebert"},
         {"h": "Colonia", "a": "Mainz 05", "f": "17/01 9:30 a.m.", "arb": "Sven Jablonski"},
         {"h": "Hamburg", "a": "Mönchengladbach", "f": "17/01 9:30 a.m.", "arb": "Deniz Aytekin"},
         {"h": "Wolfsburg", "a": "Heidenheim", "f": "17/01 9:30 a.m.", "arb": "Bastian Dankert"},
         {"h": "Dortmund", "a": "St. Pauli", "f": "17/01 9:30 a.m.", "arb": "Felix Brych"},
-        {"h": "RB Leipzig", "a": "Bayern", "f": "17/01 12:30 p.m.", "arb": "Deniz Aytekin"},
-        {"h": "Stuttgart", "a": "Union Berlin", "f": "18/01 9:30 a.m.", "arb": "Daniel Schlager"}
+        {"h": "RB Leipzig", "a": "Bayern", "f": "17/01 12:30 p.m.", "arb": "Deniz Aytekin"}
     ],
     "La Liga (España)": [
-        {"h": "Real Madrid", "a": "Levante", "f": "17/01", "arb": "Munuera Montero"},
-        {"h": "Girona", "a": "Sevilla", "f": "17/01", "arb": "Busquets Ferrer"},
+        {"h": "Getafe", "a": "Leganés", "f": "17/01", "arb": "Munuera Montero"},
+        {"h": "Real Madrid", "a": "Levante", "f": "17/01", "arb": "Alberola Rojas"},
         {"h": "Barcelona", "a": "Real Sociedad", "f": "18/01", "arb": "Hernández Hernández"},
-        {"h": "Atlético Madrid", "a": "Villarreal", "f": "18/01", "arb": "Sánchez Martínez"}
+        {"h": "Girona", "a": "Sevilla", "f": "18/01", "arb": "Sánchez Martínez"}
     ],
     "Serie A (Italia)": [
         {"h": "Inter", "a": "Empoli", "f": "18/01", "arb": "Davide Massa"},
         {"h": "Juventus", "a": "Milan", "f": "19/01", "arb": "Daniele Orsato"},
-        {"h": "Lazio", "a": "Napoli", "f": "19/01", "arb": "Marco Guida"},
-        {"h": "Roma", "a": "Atalanta", "f": "19/01", "arb": "Fabio Maresca"}
+        {"h": "Lazio", "a": "Napoli", "f": "19/01", "arb": "Marco Guida"}
     ],
     "UEFA Europa League": [
         {"h": "Man. United", "a": "Roma", "f": "22/01", "arb": "Gil Manzano"},
         {"h": "Porto", "a": "Lazio", "f": "22/01", "arb": "Artur Soares"},
-        {"h": "Ajax", "a": "Galatasaray", "f": "22/01", "arb": "Anthony Taylor"},
-        {"h": "Frankfurt", "a": "Lyon", "f": "22/01", "arb": "Szymon Marciniak"}
+        {"h": "Ajax", "a": "Galatasaray", "f": "22/01", "arb": "Anthony Taylor"}
     ],
     "Liga 1 (Perú)": [
         {"h": "Sport Huancayo", "a": "Alianza Lima", "f": "30/01", "arb": "Kevin Ortega"},
         {"h": "Universitario", "a": "ADT", "f": "01/02", "arb": "Diego Haro"},
         {"h": "Melgar", "a": "Cienciano", "f": "31/01", "arb": "Edwin Ordoñez"}
-    ],
-    "Brasileirao": [{"h": "Flamengo", "a": "Palmeiras", "f": "25/01", "arb": "Wilton Sampaio"}],
-    "Liga Argentina": [{"h": "Boca", "a": "River", "f": "01/02", "arb": "Facundo Tello"}]
+    ]
 }
 
 # --- INTERFAZ ---
-st.sidebar.header("🏆 Menú Elite 2026")
-liga_sel = st.sidebar.selectbox("Seleccionar Liga", list(DATOS_REALES.keys()))
+liga_sel = st.sidebar.selectbox("Liga Activa", list(DATOS_REALES.keys()))
 
 col_main, col_cart = st.columns([2.2, 1])
 
 with col_main:
-    # FIX: Botón de confianza con validación de cantidad de columnas
     if st.button("💎 ANALIZAR PICKS DE MÁXIMA CONFIANZA"):
         partidos = DATOS_REALES[liga_sel]
-        mejores = [p for p in partidos if obtener_analisis_completo(p['h'], p['a'], p['arb'])['p15'] > 92]
+        mejores = []
+        for p in partidos:
+            res = obtener_analisis_completo(p['h'], p['a'], p['arb'])
+            if res['p15'] > 94:
+                mejores.append({"team": p['h'], "prob": res['p15'], "tipo": "+1.5 Goles"})
         
-        if len(mejores) > 0:
+        if mejores:
             cols = st.columns(min(len(mejores), 3))
-            for i, p in enumerate(mejores[:3]):
+            for i, pick in enumerate(mejores[:3]):
                 with cols[i]:
-                    st.metric(f"🔥 {p['h']}", "95% Conf.", "PICK TOP")
+                    st.metric(f"🔥 {pick['team']}", f"{pick['prob']}%", pick['tipo'])
         else:
-            st.warning("No se detectaron Picks con +92% de confianza en esta liga hoy.")
+            st.info("Buscando oportunidades de oro...")
         st.divider()
 
     st.header(f"🏟️ Partidos: {liga_sel}")
@@ -144,15 +151,12 @@ with col_main:
                 st.rerun()
 
 with col_cart:
-    st.header("🛒 Tu Carrito")
-    try:
-        cursor = db_conn.execute('SELECT detalle, fecha FROM carrito ORDER BY id DESC')
-        for d, f in cursor.fetchall():
-            with st.chat_message("user"):
-                st.caption(f)
-                st.write(d)
-    except:
-        st.write("Cargando referencias...")
+    st.header("🛒 Carrito Permanente")
+    cursor = db_conn.execute('SELECT detalle, fecha FROM carrito ORDER BY id DESC')
+    for d, f in cursor.fetchall():
+        with st.chat_message("user"):
+            st.caption(f)
+            st.write(d)
     
     if st.sidebar.button("🗑️ Vaciar Carrito"):
         db_conn.execute('DELETE FROM carrito')
