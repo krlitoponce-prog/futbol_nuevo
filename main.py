@@ -10,6 +10,7 @@ st.set_page_config(page_title="Analizador Fútbol Pro Elite", layout="wide", pag
 def init_db():
     conn = sqlite3.connect('carrito_web.db', check_same_thread=False)
     cursor = conn.cursor()
+    # Aseguramos que la tabla exista SIEMPRE al iniciar
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS carrito (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -20,6 +21,7 @@ def init_db():
     conn.commit()
     return conn
 
+# Inicializar conexión
 db_conn = init_db()
 
 # --- FUNCIONES DE LA API (SOLUCIÓN PLAN FREE) ---
@@ -30,7 +32,6 @@ HEADERS = {
 }
 
 def obtener_partidos_free(liga_id):
-    """Consulta partidos por fecha para evitar el error del plan gratuito."""
     hoy = datetime.now().strftime("%Y-%m-%d")
     url = f"https://v3.football.api-sports.io/fixtures?league={liga_id}&season=2025&date={hoy}"
     
@@ -46,52 +47,44 @@ def obtener_partidos_free(liga_id):
             
         return partidos
     except Exception as e:
-        st.error(f"Error de conexión: {e}")
         return []
 
 # --- INTERFAZ DE USUARIO ---
 st.title("🏆 Dashboard de Inteligencia Deportiva")
 st.markdown("---")
 
-# Sidebar: Ligas y Filtros
+# Sidebar
 st.sidebar.header("Control de Ligas")
 liga_seleccionada = st.sidebar.selectbox(
     "Selecciona Competición", 
     ["Premier League", "La Liga", "Serie A", "Bundesliga", "Ligue 1"]
 )
 
-ids_ligas = {
-    "Premier League": 39, 
-    "La Liga": 140, 
-    "Serie A": 135, 
-    "Bundesliga": 78, 
-    "Ligue 1": 61
-}
+ids_ligas = {"Premier League": 39, "La Liga": 140, "Serie A": 135, "Bundesliga": 78, "Ligue 1": 61}
 
-# Columnas principales
 col_analisis, col_carrito = st.columns([2, 1])
 
 with col_analisis:
-    st.header(f"Partidos Detectados: {liga_seleccionada}")
+    st.header(f"Partidos: {liga_seleccionada}")
     lista_partidos = obtener_partidos_free(ids_ligas[liga_seleccionada])
     
     if not lista_partidos:
-        st.info("No hay partidos programados para hoy ni mañana en esta liga.")
+        st.info("No hay partidos para hoy ni mañana. Prueba seleccionando otra liga en el menú izquierdo.")
     else:
         for p in lista_partidos:
             home = p['teams']['home']['name']
             away = p['teams']['away']['name']
             referee = p['fixture']['referee'] or "Por confirmar"
             hora = p['fixture']['date'][11:16]
+            p_id = p['fixture']['id']
             
             with st.container(border=True):
                 st.subheader(f"{home} vs {away} 🕒 {hora}")
-                st.write(f"⚖️ **Árbitro:** {referee}")
+                st.write(f"⚖️ **Juez:** {referee}")
                 
-                # BLOQUE DE LOS 6 PUNTOS SOLICITADOS
                 c1, c2, c3 = st.columns(3)
                 with c1:
-                    st.success("🎯 **Marcador:** 2 - 1") 
+                    st.success("🎯 **Marcador:** 2 - 1")
                     st.warning("🟨 **Amarillas:** 4.5+")
                 with c2:
                     st.info("⚽ **Total Goles:** +2.5")
@@ -100,35 +93,33 @@ with col_analisis:
                     st.write("⏱️ **Goles 1T:** 60% Prob.")
                     st.write("🚩 **Corners:** 9.5+")
                 
-                # BOTÓN PARA CARRITO PERMANENTE
-                if st.button(f"Guardar Referencia {home}", key=p['fixture']['id']):
-                    resumen = f"{home} vs {away} | Marcador: 2-1 | Goles: +2.5 | Corners: 9.5"
-                    fecha_reg = datetime.now().strftime("%d/%m/%Y %H:%M")
-                    
+                if st.button(f"Guardar {home}", key=f"btn_{p_id}"):
+                    resumen = f"{home} vs {away} | Pred: 2-1 | Goles: +2.5"
+                    fecha_reg = datetime.now().strftime("%d/%m %H:%M")
                     cursor = db_conn.cursor()
                     cursor.execute('INSERT INTO carrito (info, fecha_registro) VALUES (?, ?)', (resumen, fecha_reg))
                     db_conn.commit()
-                    st.toast("✅ Guardado en el Carrito Permanente")
+                    st.rerun() # Refresca para mostrar en el carrito al instante
 
 with col_carrito:
-    st.header("🛒 Carrito de Referencias")
-    st.caption("Esta información es permanente")
-    
-    cursor = db_conn.cursor()
-    cursor.execute('SELECT info, fecha_registro FROM carrito ORDER BY id DESC')
-    registros = cursor.fetchall()
-    
-    if not registros:
-        st.write("Aún no tienes análisis guardados.")
-    else:
-        for info, fecha in registros:
-            with st.chat_message("assistant"):
-                st.write(f"**Fecha:** {fecha}")
-                st.write(info)
-                st.divider()
+    st.header("🛒 Carrito")
+    try:
+        cursor = db_conn.cursor()
+        cursor.execute('SELECT info, fecha_registro FROM carrito ORDER BY id DESC')
+        registros = cursor.fetchall()
+        
+        if not registros:
+            st.write("Carrito vacío.")
+        else:
+            for info, fecha in registros:
+                with st.chat_message("assistant"):
+                    st.write(f"**{fecha}**")
+                    st.write(info)
+    except:
+        st.error("Error al cargar el carrito. Intenta reiniciar la app.")
 
 # Botón para limpiar
-if st.sidebar.button("Limpiar Carrito (Borrar Todo)"):
+if st.sidebar.button("Borrar Todo el Carrito"):
     db_conn.execute('DELETE FROM carrito')
     db_conn.commit()
     st.rerun()
