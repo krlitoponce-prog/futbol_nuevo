@@ -1,14 +1,16 @@
 import streamlit as st
 import sqlite3
+import os
 from datetime import datetime
 import random
 
 # --- CONFIGURACIÓN ---
-st.set_page_config(page_title="Analizador Elite Multifuente", layout="wide", page_icon="⚽")
+st.set_page_config(page_title="Analizador Elite v5", layout="wide", page_icon="📈")
 
-# --- BASE DE DATOS PERMANENTE ---
+# --- BASE DE DATOS (CARRITO PERMANENTE) ---
 def init_db():
-    conn = sqlite3.connect('analisis_deportivo_2026.db', check_same_thread=False)
+    db_path = os.path.join(os.getcwd(), 'analisis_total_2026.db')
+    conn = sqlite3.connect(db_path, check_same_thread=False)
     cursor = conn.cursor()
     cursor.execute('''CREATE TABLE IF NOT EXISTS carrito 
                   (id INTEGER PRIMARY KEY AUTOINCREMENT, detalle TEXT, liga TEXT, fecha TEXT)''')
@@ -17,102 +19,109 @@ def init_db():
 
 db_conn = init_db()
 
-# --- LÓGICA DE PREDICCIÓN DINÁMICA (No más datos repetidos) ---
-def generar_analisis(home, away, liga):
-    # Simulamos el cruce de datos SofaScore/Flashscore
-    # Equipos con mucha ofensiva (Goles +)
-    ofensivos = ["Man. City", "Arsenal", "Liverpool", "Bayern", "Real Madrid", "FC Barcelona", "Universitario"]
-    
-    if home in ofensivos or away in ofensivos:
-        marcador = random.choice(["2-1", "3-1", "2-2", "3-2"])
-        corners = random.choice(["10.5+", "11.5+", "12.5+"])
-        goles_1t = random.choice(["80%", "90%"])
-        totales = "+2.5 / +3.5"
-    else:
-        marcador = random.choice(["1-0", "1-1", "0-0", "2-0"])
-        corners = random.choice(["8.5+", "9.5+"])
-        goles_1t = random.choice(["45%", "60%"])
-        totales = "-2.5 / +1.5"
-    
-    return marcador, corners, goles_1t, totales
+# --- MOTOR DE PROBABILIDAD Y CONFIANZA ---
+def analizar_confianza(liga_nombre):
+    # Simulamos el escaneo de datos scrapeados (Flashscore, SofaScore, etc.)
+    picks = [
+        {"tipo": "🔥 Goles +1.5", "partido": "Real Madrid vs Man. City", "confianza": "94%", "razón": "Ataque élite + H2H alto"},
+        {"tipo": "⚽ Gol 1T", "partido": "Bayern vs Arsenal", "confianza": "89%", "razón": "Racha de 10 partidos con gol 1T"},
+        {"tipo": "🚩 Corners", "partido": "Liverpool vs Burnley", "confianza": "91%", "razón": "Promedio 12.5 corners/partido"},
+        {"tipo": "🟨 Tarjetas", "partido": "Boca vs River", "confianza": "95%", "razón": "Árbitro Facundo Tello (Tarjetero)"},
+        {"tipo": "🚀 Goles +2.5", "partido": "RB Leipzig vs Bayern", "confianza": "87%", "razón": "Defensas abiertas en Bundesliga"}
+    ]
+    return picks
 
-# --- CALENDARIO REAL 2026 ---
-def obtener_partidos(liga):
-    data = {
-        "Premier League (Inglaterra)": [
-            {"home": "Man. United", "away": "Man. City", "status": "LIVE", "score": "2-2", "arb": "Michael Oliver"},
-            {"home": "Chelsea", "away": "Brentford", "status": "17/1", "arb": "Anthony Taylor"},
-            {"home": "Liverpool", "away": "Burnley", "status": "17/1", "arb": "Paul Tierney"}
-        ],
-        "Bundesliga (Alemania)": [
-            {"home": "RB Leipzig", "away": "Bayern", "status": "17/1", "arb": "Deniz Aytekin"},
-            {"home": "Dortmund", "away": "St. Pauli", "status": "17/1", "arb": "Sven Jablonski"},
-            {"home": "Werder Bremen", "away": "Eintracht", "status": "LIVE", "score": "1-0", "arb": "Felix Zwayer"}
-        ],
-        "Liga 1 (Perú)": [
-            {"home": "Sport Huancayo", "away": "Alianza Lima", "status": "30/1", "arb": "Kevin Ortega"},
-            {"home": "FBC Melgar", "away": "Cienciano", "status": "31/1", "arb": "Bruno Pérez"},
-            {"home": "Universitario", "away": "ADT", "status": "01/02", "arb": "Edwin Ordoñez"}
-        ]
-    }
-    return data.get(liga, [])
+def calcular_stats(arb):
+    p_15 = random.randint(75, 98)
+    p_25 = random.randint(40, 70)
+    p_1t = random.randint(60, 90)
+    estrictos = ["Kevin Ortega", "Michael Oliver", "Hernández Hernández", "Szymon Marciniak", "Facundo Tello"]
+    es_propenso = arb in estrictos
+    return {"p15": p_15, "p25": p_25, "p1t": p_1t, "roja": "ALTO" if es_propenso else "BAJO", "t_rango": "5-8" if es_propenso else "2-4"}
+
+# --- DATOS DE LIGAS (12 + CHAMPIONS/EUROPA) ---
+LIGAS_DATA = {
+    "UEFA Champions League": [{"h": "Real Madrid", "a": "Man. City", "f": "20/01", "arb": "Szymon Marciniak"}],
+    "UEFA Europa League": [{"h": "Man. United", "a": "Roma", "f": "22/01", "arb": "Gil Manzano"}],
+    "Premier League (Inglaterra)": [{"h": "Liverpool", "a": "Burnley", "f": "17/01", "arb": "Anthony Taylor"}],
+    "La Liga (España)": [{"h": "Real Madrid", "a": "Levante", "f": "17/01", "arb": "Munuera Montero"}],
+    "Liga 1 (Perú)": [{"h": "Sport Huancayo", "a": "Alianza Lima", "f": "30/01", "arb": "Kevin Ortega"}],
+    "Bundesliga (Alemania)": [{"h": "RB Leipzig", "a": "Bayern", "f": "17/01", "arb": "Deniz Aytekin"}],
+    "Serie A (Italia)": [{"h": "Inter", "a": "Milan", "f": "18/01", "arb": "Davide Massa"}],
+    "Ligue 1 (Francia)": [{"h": "PSG", "a": "Lyon", "f": "18/01", "arb": "Clément Turpin"}],
+    "Brasileirao (Brasil)": [{"h": "Flamengo", "a": "Palmeiras", "f": "25/01", "arb": "Wilton Sampaio"}],
+    "Liga Argentina": [{"h": "Boca Juniors", "a": "River Plate", "f": "01/02", "arb": "Facundo Tello"}],
+    "Primeira Liga (Portugal)": [{"h": "Benfica", "a": "Porto", "f": "20/01", "arb": "Artur Soares"}],
+    "Eredivisie (Países Bajos)": [{"h": "Ajax", "a": "PSV", "f": "22/01", "arb": "Danny Makkelie"}]
+}
 
 # --- INTERFAZ ---
-st.title("🛡️ Dashboard de Inteligencia Deportiva 2026")
+st.title("🛡️ Sistema de Inteligencia Deportiva 2026")
 
-liga_sel = st.sidebar.selectbox("Selecciona Liga", ["Premier League (Inglaterra)", "Bundesliga (Alemania)", "Liga 1 (Perú)"])
+# SIDEBAR: Reporte y Filtros
+st.sidebar.header("📊 Centro de Reportes")
+if st.sidebar.button("📄 Generar Reporte de Carrito"):
+    cursor = db_conn.cursor()
+    cursor.execute('SELECT detalle FROM carrito')
+    filas = cursor.fetchall()
+    reporte = "\n".join([f"- {f[0]}" for f in filas])
+    st.sidebar.text_area("Copia tu Reporte:", value=f"REPORTE DE REFERENCIAS 2026:\n{reporte}", height=200)
 
-col_main, col_cart = st.columns([2, 1])
+st.sidebar.divider()
+st.sidebar.header("Ligas y Torneos")
+liga_sel = st.sidebar.selectbox("Selecciona:", list(LIGAS_DATA.keys()))
 
-with col_main:
+col_p, col_c = st.columns([2, 1])
+
+with col_p:
+    # BOTÓN DE CONFIANZA
+    if st.button("💎 ANALIZAR PARTIDOS DE MÁXIMA CONFIANZA (REAL-TIME)"):
+        st.subheader("🎯 Picks de Alta Probabilidad detectados:")
+        recomendados = analizar_confianza(liga_sel)
+        cols = st.columns(len(recomendados))
+        for i, r in enumerate(recomendados):
+            with cols[i]:
+                st.metric(label=r['tipo'], value=r['confianza'], delta=r['partido'])
+                st.caption(r['razón'])
+        st.divider()
+
     st.header(f"⚽ {liga_sel}")
-    partidos = obtener_partidos(liga_sel)
-    
-    for p in partidos:
-        # Generamos análisis único para CADA partido
-        pred_marcador, pred_corners, pred_1t, pred_total = generar_analisis(p['home'], p['away'], liga_sel)
-        
+    for p in LIGAS_DATA[liga_sel]:
+        s = calcular_stats(p['arb'])
         with st.container(border=True):
-            # Encabezado dinámico
-            if p.get('status') == "LIVE":
-                st.error(f"🔴 EN VIVO | {p['home']} {p['score']} {p['away']}")
-            else:
-                st.subheader(f"{p['home']} vs {p['away']}")
-                st.caption(f"🗓️ Fecha: {p['status']} | ⚖️ Árbitro: {p['arb']}")
-
-            # --- BLOQUE DE 6 PUNTOS DINÁMICOS ---
-            st.markdown("---")
+            st.subheader(f"{p['h']} vs {p['a']}")
+            st.caption(f"🗓️ {p['f']} | ⚖️ Árbitro: {p['arb']}")
+            
             c1, c2, c3 = st.columns(3)
             with c1:
-                st.success(f"🎯 Marcador: {pred_marcador}")
-                st.info(f"🚩 Corners: {pred_corners}")
+                st.success(f"🎯 Marcador: {random.choice(['2-1', '1-1', '2-0'])}")
+                st.info(f"🚩 Corners: {random.choice(['9.5+', '10.5+'])}")
             with c2:
-                st.warning(f"🟨 Tarjetas: {p['arb']}")
-                st.write(f"⏱️ Goles 1T: {pred_1t}")
+                st.warning(f"🟨 Tarjetas: {s['t_rango']}")
+                color_roja = "red" if s['roja'] == "ALTO" else "white"
+                st.markdown(f"🟥 Riesgo Roja: <span style='color:{color_roja}'>{s['roja']}</span>", unsafe_allow_html=True)
             with c3:
-                st.error(f"⚽ Goles Totales: {pred_total}")
-                st.write("🟥 Rojas: Riesgo Analizado")
+                st.write(f"⏱️ Gol 1T: **{s['p1t']}%**")
+                st.write(f"🟢 +1.5 Goles: **{s['p115']}%**" if 'p115' in s else f"🟢 +1.5 Goles: **{s['p15']}%**")
+                st.write(f"🔵 +2.5 Goles: **{s['p25']}%**")
 
-            # Botón para Guardar con datos únicos
-            if st.button(f"Guardar Referencia: {p['home']}", key=f"save_{p['home']}"):
-                detalle = f"📌 {p['home']} vs {p['away']} | Pred: {pred_marcador} | Corn: {pred_corners}"
-                cursor = db_conn.cursor()
-                cursor.execute('INSERT INTO carrito (detalle, liga, fecha) VALUES (?, ?, ?)', 
-                             (detalle, liga_sel, datetime.now().strftime("%d/%m %H:%M")))
+            if st.button("Guardar en Carrito Permanente", key=p['h']):
+                txt = f"📌 {p['h']} vs {p['a']} | Pick: +1.5 ({s['p15']}%) | Roja: {s['roja']}"
+                db_conn.execute('INSERT INTO carrito (detalle, liga, fecha) VALUES (?, ?, ?)', (txt, liga_sel, datetime.now().strftime("%d/%m %H:%M")))
                 db_conn.commit()
                 st.rerun()
 
-with col_cart:
-    st.header("🛒 Carrito Permanente")
+with col_c:
+    st.header("🛒 Tu Carrito")
     cursor = db_conn.cursor()
     cursor.execute('SELECT detalle, fecha FROM carrito ORDER BY id DESC')
     items = cursor.fetchall()
-    for det, fec in items:
-        with st.chat_message("assistant"):
-            st.caption(f"Registrado: {fec}")
-            st.write(det)
-
-if st.sidebar.button("🗑️ Vaciar Carrito"):
-    db_conn.execute('DELETE FROM carrito')
-    db_conn.commit()
-    st.rerun()
+    for d, f in items:
+        with st.chat_message("user"):
+            st.caption(f)
+            st.write(d)
+    
+    if st.sidebar.button("🗑️ Vaciar Todo"):
+        db_conn.execute('DELETE FROM carrito')
+        db_conn.commit()
+        st.rerun()
