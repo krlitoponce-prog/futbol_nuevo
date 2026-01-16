@@ -6,29 +6,29 @@ import random
 import urllib.parse
 
 # --- CONFIGURACIÓN ---
-st.set_page_config(page_title="Analizador Elite v30 - Full Data & Rojas", layout="wide", page_icon="⚽")
+st.set_page_config(page_title="Analizador Elite v32 - Full Ligas", layout="wide", page_icon="⚽")
 
 # --- BASE DE DATOS PERMANENTE ---
 def init_db():
-    db_path = os.path.join(os.getcwd(), 'analisis_final_v30.db')
+    db_path = os.path.join(os.getcwd(), 'analisis_final_v32.db')
     conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.execute('''CREATE TABLE IF NOT EXISTS carrito 
                   (id INTEGER PRIMARY KEY AUTOINCREMENT, detalle TEXT, liga TEXT, fecha TEXT)''')
     return conn
 db_conn = init_db()
 
-# --- MOTOR DE CÁLCULO (COHERENCIA + ROJAS) ---
+# --- MOTOR DE CÁLCULO (COHERENCIA + ROJAS + JERARQUÍA) ---
 def calcular_elite(h, a, estado_h, estado_a, arbitro):
     seed = len(h) + len(a) + 2026
     random.seed(seed)
-    GIGANTES = ["Atalanta BC", "PSG", "Man. City", "Real Madrid", "Barcelona", "Inter", "Bayern", "Arsenal", "Liverpool", "Juventus", "Milan"]
+    GIGANTES = ["Atalanta BC", "PSG", "Man. City", "Real Madrid", "Barcelona", "Inter", "Bayern", "Arsenal", "Liverpool", "Juventus", "Milan", "Oporto", "Benfica", "Sporting CP"]
     
-    # 1. MARCADOR
+    # 1. MARCADOR REALISTA
     if a in GIGANTES:
         g_h = random.randint(0, 1) if estado_h != "Completo" else random.randint(0, 2)
-        g_a = random.randint(1, 2) if estado_a == "Completo" else random.randint(0, 1)
+        g_a = random.randint(1, 2) if estado_a != "Baja Crítica (Estrella)" else random.randint(0, 1)
     elif h in GIGANTES:
-        g_h = random.randint(1, 3) if estado_h == "Completo" else random.randint(1, 2)
+        g_h = random.randint(1, 3) if estado_h != "Baja Crítica (Estrella)" else random.randint(0, 2)
         g_a = random.randint(0, 1)
     else:
         g_h, g_a = random.randint(0, 2), random.randint(0, 2)
@@ -41,22 +41,22 @@ def calcular_elite(h, a, estado_h, estado_a, arbitro):
     if total >= 2:
         p15, p1t = random.randint(85, 98), random.randint(70, 90)
     elif total == 1:
-        p15, p1t = random.randint(15, 35), random.randint(10, 30)
+        p15, p1t = random.randint(35, 55), random.randint(25, 45)
     else:
-        p15, p1t = random.randint(2, 10), random.randint(1, 5)
+        p15, p1t = random.randint(5, 12), random.randint(2, 8)
 
     # 3. ANÁLISIS DE ÁRBITRO Y ROJAS
-    estrictos = ["Daniele Orsato", "Anthony Taylor", "Michael Oliver", "Hernández Hernández", "Kevin Ortega", "Clément Turpin"]
+    estrictos = ["Matteo Marchetti", "Clément Turpin", "Anthony Taylor", "Michael Oliver", "Hernández Hernández", "Kevin Ortega"]
     es_estricto = arbitro in estrictos
     t_rango = "5-8" if es_estricto else "2-5"
-    roja_prob = "ALTA (Crítica)" if es_estricto else "Moderada/Baja"
+    roja_prob = "ALTA" if es_estricto else "BAJA/MED"
     
     return {"p15": p15, "p1t": p1t, "g_h": g_h, "g_a": g_a, "corners": random.choice(["8.5+", "9.5+", "10.5+"]), "t_rango": t_rango, "roja": roja_prob}
 
-# --- JORNADAS 100% COMPLETAS ---
+# --- JORNADAS 100% COMPLETAS (12 LIGAS) ---
 DATOS_REALES = {
     "Serie A (Italia)": [
-        {"h": "AC Pisa 1909", "a": "Atalanta BC", "f": "Vie 16/01", "arb": "Daniele Orsato"},
+        {"h": "AC Pisa 1909", "a": "Atalanta BC", "f": "Vie 16/01", "arb": "Matteo Marchetti"},
         {"h": "Lazio", "a": "Como", "f": "Sáb 17/01", "arb": "Marco Guida"},
         {"h": "Monza", "a": "Fiorentina", "f": "Sáb 17/01", "arb": "Daniele Doveri"},
         {"h": "Bologna", "a": "Roma", "f": "Dom 18/01", "arb": "Fabio Maresca"},
@@ -92,12 +92,14 @@ DATOS_REALES = {
     ],
     "Bundesliga (Alemania)": [
         {"h": "Werder Bremen", "a": "Frankfurt", "f": "16/01", "arb": "Felix Zwayer"},
+        {"h": "Dortmund", "a": "St. Pauli", "f": "17/01", "arb": "Felix Brych"},
         {"h": "RB Leipzig", "a": "Bayern", "f": "17/01", "arb": "Deniz Aytekin"}
     ],
     "UEFA Champions League": [
         {"h": "Inter", "a": "Arsenal", "f": "20/01", "arb": "Szymon Marciniak"},
         {"h": "Real Madrid", "a": "Mónaco", "f": "20/01", "arb": "Slavko Vincic"}
     ],
+    "UEFA Europa League": [{"h": "Man. United", "a": "Roma", "f": "22/01", "arb": "Gil Manzano"}],
     "Liga 1 (Perú)": [{"h": "Sport Huancayo", "a": "Alianza Lima", "f": "30/01", "arb": "Kevin Ortega"}],
     "Brasileirao (Brasil)": [{"h": "Flamengo", "a": "Palmeiras", "f": "25/01", "arb": "Wilton Sampaio"}],
     "Liga Argentina": [{"h": "Boca", "a": "River", "f": "01/02", "arb": "Facundo Tello"}],
@@ -105,7 +107,7 @@ DATOS_REALES = {
 }
 
 # --- INTERFAZ ---
-st.sidebar.title("⚽ PRO ANALYZER v30")
+st.sidebar.title("⚽ PRO ANALYZER v32")
 liga_sel = st.sidebar.selectbox("Seleccionar Liga", list(DATOS_REALES.keys()))
 
 col_main, col_cart = st.columns([2.2, 1])
@@ -135,7 +137,7 @@ with col_main:
                 st.markdown(f"🟥 Roja: **{res['roja']}**")
 
             if st.button(f"💾 Guardar Pick", key=f"btn_{p['h']}_{p['f']}"):
-                txt = f"⚽ {p['h']}-{p['a']} | Score: {res['g_h']}-{res['g_a']} | Árb: {p['arb']} | Roja: {res['roja']}"
+                txt = f"⚽ {p['h']}-{p['a']} | Score: {res['g_h']}-{res['g_a']} | Árb: {p['arb']}"
                 db_conn.execute('INSERT INTO carrito (detalle, liga, fecha) VALUES (?, ?, ?)', (txt, liga_sel, datetime.now().strftime("%d/%m %H:%M")))
                 db_conn.commit(); st.rerun()
 
@@ -144,4 +146,3 @@ with col_cart:
     cursor = db_conn.execute('SELECT detalle, fecha FROM carrito ORDER BY id DESC')
     for d, f in cursor.fetchall():
         with st.chat_message("user"): st.caption(f); st.write(d)
-    if st.sidebar.button("🗑️ Vaciar"): db_conn.execute('DELETE FROM carrito'); db_conn.commit(); st.rerun()
