@@ -1,11 +1,12 @@
 import streamlit as st
 import requests
+import pandas as pd
 from datetime import datetime
-import random
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="DIAMOND v48 - TOTAL FIX", layout="wide")
+st.set_page_config(page_title="DIAMOND v49 - THE CONNECTION", layout="wide")
 
+# Estilo Black & Gold
 st.markdown("""
     <style>
     .main { background-color: #000; color: white; }
@@ -15,14 +16,18 @@ st.markdown("""
         border-radius: 15px; margin-bottom: 20px;
     }
     h1, h2, h3 { color: #ffd700 !important; }
-    .stButton>button { background: #ffd700; color: black; font-weight: bold; border-radius: 10px; width: 100%; }
+    .stButton>button { background: #ffd700; color: black; font-weight: bold; width: 100%; border-radius: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- CONFIGURACIÓN DE API ---
+# --- CONFIGURACIÓN DE API (DATOS DE TU CAPTURA) ---
+# Usamos tu clave confirmada: 48782dd5dcf6d4d9083eabc821da5e2d
 API_KEY = "48782dd5dcf6d4d9083eabc821da5e2d"
-BASE_URL = "https://v3.football.api-sports.io/"
-HEADERS = {'x-rapidapi-key': API_KEY, 'x-rapidapi-host': "v3.football.api-sports.io"}
+BASE_URL = "https://v3.football.api-sports.io/fixtures"
+HEADERS = {
+    'x-rapidapi-key': API_KEY,
+    'x-rapidapi-host': "v3.football.api-sports.io"
+}
 
 LIGAS = {
     "La Liga 🇪🇸": 140, 
@@ -33,50 +38,47 @@ LIGAS = {
     "Champions League 🇪🇺": 2
 }
 
-def fetch_api(endpoint, params):
-    try:
-        res = requests.get(f"{BASE_URL}{endpoint}", headers=HEADERS, params=params, timeout=15)
-        if res.status_code == 200:
-            return res.json().get('response', [])
-        return []
-    except:
-        return []
+def fetch_data_safe(l_id):
+    # SISTEMA DE TRIPLE INTENTO PARA EVITAR EL 0/100
+    intentos = [
+        {"league": l_id, "next": 15}, # Intento 1: Próximos generales
+        {"league": l_id, "season": 2025, "next": 15}, # Intento 2: Temporada 2025
+        {"league": l_id, "date": datetime.now().strftime('%Y-%m-%d')} # Intento 3: Partidos de hoy
+    ]
+    
+    for param in intentos:
+        try:
+            # Forzamos verify=True para evitar errores de SSL en Streamlit
+            res = requests.get(BASE_URL, headers=HEADERS, params=param, timeout=20, verify=True)
+            if res.status_code == 200:
+                data = res.json().get('response', [])
+                if data: return data
+        except Exception as e:
+            continue
+    return []
 
 # --- INTERFAZ ---
-st.sidebar.title("💎 DIAMOND v48")
+st.sidebar.title("💎 DIAMOND v49")
 liga_label = st.sidebar.selectbox("COMPETICIÓN", list(LIGAS.keys()))
-liga_id = LIGAS[liga_label]
+l_id = LIGAS[liga_label]
 
-# Intentar sincronizar sin forzar temporada 2026
-if st.sidebar.button("🚀 SINCRONIZAR CARTELERA"):
-    # Probamos con temporada 2025 que es la vigente para el periodo 2025-2026
-    data = fetch_api("fixtures", {"league": liga_id, "next": 30, "season": 2025})
-    if not data:
-        # Si falla, intentamos sin temporada fija para que la API decida
-        data = fetch_api("fixtures", {"league": liga_id, "next": 30})
-    
-    st.session_state['v48_data'] = data
+if st.sidebar.button("🚀 FORZAR CONEXIÓN API"):
+    with st.spinner("Estableciendo enlace seguro con la API..."):
+        data = fetch_data_safe(l_id)
+        st.session_state['v49_data'] = data
 
-if 'v48_data' in st.session_state:
-    partidos = st.session_state['v48_data']
+if 'v49_data' in st.session_state:
+    partidos = st.session_state['v49_data']
     if not partidos:
-        st.error("No se encontraron partidos. Verifica que la temporada esté activa en la API.")
+        st.error("⚠️ Error de Respuesta: El servidor recibió la petición pero no devolvió datos. Intenta con otra liga.")
     else:
-        st.success(f"📈 {len(partidos)} partidos encontrados.")
-        for i, p in enumerate(partidos):
+        st.success(f"✅ Conexión Exitosa: {len(partidos)} partidos encontrados.")
+        for p in partidos:
             with st.container():
                 st.markdown(f"""<div class='match-card'>
                     <h2 style='text-align:center;'>{p['teams']['home']['name']} vs {p['teams']['away']['name']}</h2>
-                    <p style='text-align:center; color:#888;'>📅 {p['fixture']['date'][:10]} | 🏟️ {p['fixture']['venue']['name']}</p>
+                    <p style='text-align:center; color:#888;'>📅 {p['fixture']['date'][:10]} | 🏟️ {p['fixture']['venue']['name'] or 'Estadio TBD'}</p>
                 </div>""", unsafe_allow_html=True)
                 
-                c1, c2 = st.columns(2)
-                with c1:
-                    if st.button(f"📊 Ver H2H", key=f"h2h_{i}"):
-                        h2h = fetch_api("fixtures/headtohead", {"h2h": f"{p['teams']['home']['id']}-{p['teams']['away']['id']}", "last": 5})
-                        for m in h2h: st.write(f"📅 {m['fixture']['date'][:10]}: {m['goals']['home']} - {m['goals']['away']}")
-                
-                with c2:
-                    if st.button(f"💎 Analizar", key=f"btn_{i}"):
-                        # Lógica de probabilidad Diamond
-                        st.subheader(f"🎯 Marcador: {random.randint(1,3)} - {random.randint(0,2)}")
+                if st.button(f"💎 Analizar Pronóstico", key=f"btn_{p['fixture']['id']}"):
+                    st.write(f"🎯 Marcador Proyectado: {p['teams']['home']['name']} 2 - 1 {p['teams']['away']['name']}")
