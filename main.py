@@ -4,141 +4,117 @@ from bs4 import BeautifulSoup
 import random
 import time
 
-# --- ESTILO VISUAL ELITE (BLACK & GOLD) ---
-st.set_page_config(page_title="DIAMOND v44 - ABSOLUTE ZERO", layout="wide")
+# --- INTERFAZ ELITE ---
+st.set_page_config(page_title="DIAMOND v44.1 - STEALTH", layout="wide")
 
 st.markdown("""
     <style>
-    .main { background-color: #000000; color: #ffffff; }
-    .stApp { background-color: #000000; }
-    .card {
-        background: linear-gradient(145deg, #0f0f0f, #1a1a1a);
-        border: 1px solid #ffd700;
-        padding: 25px;
-        border-radius: 15px;
-        margin-bottom: 20px;
-        box-shadow: 0 10px 30px rgba(255, 215, 0, 0.05);
+    .main { background-color: #050505; color: white; }
+    .match-card { 
+        background: #111; border: 1px solid #ffd700; padding: 20px; 
+        border-radius: 15px; margin-bottom: 15px; 
     }
-    .value-tag {
-        background: #1b4332;
-        color: #74c69d;
-        padding: 5px 15px;
-        border-radius: 20px;
-        font-weight: bold;
-        font-size: 0.8em;
-        border: 1px solid #2d6a4f;
-    }
-    .form-win { color: #2ecc71; font-weight: bold; }
-    .form-loss { color: #e74c3c; font-weight: bold; }
-    .stButton>button { 
-        background: linear-gradient(90deg, #ffd700, #b8860b);
-        color: black; font-weight: bold; border: none; border-radius: 8px;
-        transition: 0.3s all; height: 3.5em; width: 100%;
-    }
-    .stButton>button:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(255, 215, 0, 0.3); }
+    .stButton>button { background: #ffd700; color: black; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
-class AbsoluteScraper:
+class StealthScraper:
     def __init__(self):
         self.ligas = {
             "Premier League 🏴󠁧󠁢󠁥󠁮󠁧󠁿": "eng.1", "La Liga 🇪🇸": "esp.1", "Serie A 🇮🇹": "ita.1",
             "Bundesliga 🇩🇪": "ger.1", "Ligue 1 🇫🇷": "fra.1", "Liga 1 🇵🇪": "per.1",
-            "Champions League 🇪🇺": "uefa.champions", "Europa League 🇪🇺": "uefa.europa", "Primeira Liga 🇵🇹": "por.1"
+            "Champions League 🇪🇺": "uefa.champions", "Europa League 🇪🇺": "uefa.europa"
         }
 
-    def fetch(self, slug):
+    def get_data(self, slug):
         url = f"https://www.espn.com.pe/futbol/fixture/_/liga/{slug}"
-        # Cabeceras ultra-limpias para evitar bloqueos detectados
+        
+        # Headers de nivel empresarial para evitar bloqueos
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept-Language": "es-ES,es;q=0.9"
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "es-ES,es;q=0.8,en-US;q=0.5,en;q=0.3",
+            "Referer": "https://www.google.com/"
         }
+
         try:
-            res = requests.get(url, headers=headers, timeout=12)
-            if res.status_code != 200: return None
-            soup = BeautifulSoup(res.text, 'lxml')
+            # Iniciamos una sesión para manejar cookies
+            session = requests.Session()
+            response = session.get(url, headers=headers, timeout=15)
+            
+            if response.status_code != 200:
+                return None
+
+            soup = BeautifulSoup(response.text, 'html.parser')
             matches = []
             
-            for row in soup.select('tr.Table__TR'):
-                anchors = row.select('a.AnchorLink')
-                teams = [a.text.strip() for a in anchors if '/equipo/' in a.get('href', '') and len(a.text.strip()) > 1]
-                time_info = row.select_one('td.date__col')
+            # Selector de tabla optimizado para 2026
+            for row in soup.find_all('tr', class_='Table__TR'):
+                teams = row.find_all('a', class_='AnchorLink')
+                # Filtramos nombres reales de equipos
+                names = [t.text.strip() for t in teams if '/equipo/' in t.get('href', '') and len(t.text.strip()) > 1]
+                time_info = row.find('td', class_='date__col')
                 
-                if len(teams) >= 2:
+                if len(names) >= 2:
                     matches.append({
-                        "h": teams[0], "a": teams[1],
+                        "h": names[0], "a": names[1],
                         "t": time_info.text.strip() if time_info else "Programado",
                         "h_f": [random.choice(['V', 'E', 'D']) for _ in range(5)],
                         "a_f": [random.choice(['V', 'E', 'D']) for _ in range(5)]
                     })
             return matches
-        except: return None
+        except Exception as e:
+            return None
 
-def calcular_diamond(m, fatigue, injury):
-    # Lógica de Poder
-    giants = ["Man City", "Real Madrid", "Bayern", "PSG", "Inter", "Liverpool", "Arsenal", "Barcelona"]
+def motor_diamond(m, fatiga, estrellas):
+    # Lógica de Poder e Impacto
+    tops = ["Man City", "Real Madrid", "Bayern", "PSG", "Inter", "Arsenal", "Barcelona"]
+    base_h = 2.1 if m['h'] in tops else 1.3
+    base_a = 1.1 if m['a'] in tops else 0.8
     
     # Factor Forma Actual
-    val_h = sum([0.2 if r == 'V' else -0.1 for r in m['h_f']])
-    val_a = sum([0.2 if r == 'V' else -0.1 for r in m['a_f']])
+    base_h += sum([0.2 if r == 'V' else -0.1 for r in m['h_f']])
     
-    p_h = (2.2 if m['h'] in giants else 1.4) + val_h
-    p_a = (1.2 if m['a'] in giants else 0.8) + val_a
+    if fatiga: base_h *= 0.85 # Reducción por cansancio
+    if estrellas: base_h *= 0.75 # Impacto por bajas críticas
     
-    if fatigue: p_h *= 0.85
-    if injury: p_h *= 0.75
+    res_h = max(0, round(base_h + random.uniform(-0.1, 0.3)))
+    res_a = max(0, round(base_a + random.uniform(-0.1, 0.2)))
     
-    res_h = max(0, round(p_h + random.uniform(-0.1, 0.3)))
-    res_a = max(0, round(p_a + random.uniform(-0.1, 0.2)))
+    # Alerta de Valor
+    is_value = (base_h - base_a) > 1.2
     
-    is_value = (p_h - p_a) > 1.3 or (m['h'] in giants and m['h_f'].count('V') >= 3)
-    return {"score": f"{res_h} - {res_a}", "corners": "10.5+", "value": is_value}
+    return {"score": f"{res_h} - {res_a}", "corners": "9.5+", "value": is_value}
 
-# --- UI APP ---
-scr = AbsoluteScraper()
-st.sidebar.markdown("<h1 style='text-align: center; color: #ffd700;'>💎 DIAMOND v44</h1>", unsafe_allow_html=True)
-liga_sel = st.sidebar.selectbox("LIGAS MASTER", list(scr.ligas.keys()))
+# --- UI ---
+st.sidebar.title("💎 DIAMOND v44.1")
+core = StealthScraper()
+liga_sel = st.sidebar.selectbox("LIGAS MASTER", list(core.ligas.keys()))
 
-if st.sidebar.button("🚀 SINCRONIZAR CARTELERA"):
-    with st.spinner("Analizando racha y jerarquía..."):
-        st.session_state['v44_data'] = scr.fetch(scr.ligas[liga_sel])
+if st.sidebar.button("🚀 SINCRONIZAR"):
+    with st.spinner("Bypassing firewalls..."):
+        st.session_state['v44_1'] = core.get_data(core.ligas[liga_sel])
 
-if 'v44_data' in st.session_state:
-    data = st.session_state['v44_data']
+if 'v44_1' in st.session_state:
+    data = st.session_state['v44_1']
     if not data:
-        st.error("🚨 Error de conexión. Los servidores externos bloquean la IP. Intenta de nuevo en 15 segundos.")
+        st.error("⚠️ El servidor de origen bloqueó la IP. Intenta de nuevo o cambia de liga.")
     else:
-        st.success(f"📈 {len(data)} partidos cargados correctamente.")
+        st.success(f"📈 {len(data)} partidos cargados.")
         for i, m in enumerate(data):
             with st.container():
-                st.markdown(f"""
-                <div class="card">
-                    <div style="display: flex; justify-content: space-between;">
-                        <div>
-                            <h3 style="margin:0; color:white;">{m['h']}</h3>
-                            <small>{' '.join([f"<span class='form-win'>{r}</span>" if r=='V' else r for r in m['h_f']])}</small>
-                        </div>
-                        <div style="color:#ffd700; font-weight:bold; align-self:center;">VS</div>
-                        <div style="text-align:right;">
-                            <h3 style="margin:0; color:white;">{m['a']}</h3>
-                            <small>{' '.join([f"<span class='form-win'>{r}</span>" if r=='V' else r for r in m['a_f']])}</small>
-                        </div>
+                st.markdown(f"""<div class="match-card">
+                    <div style="display:flex; justify-content:space-between;">
+                        <b>{m['h']}</b> <span style="color:#ffd700">VS</span> <b>{m['a']}</b>
                     </div>
-                    <p style="text-align:center; font-size:0.8em; color:#888; margin-top:10px;">🕒 {m['t']}</p>
-                </div>
-                """, unsafe_allow_html=True)
+                    <small>Forma: {' '.join(m['h_f'])} | {m['t']}</small>
+                </div>""", unsafe_allow_html=True)
                 
                 c1, c2, c3 = st.columns(3)
-                with c1: f = st.toggle("Fatiga Extrema", key=f"f_{i}")
-                with c2: s = st.toggle("Baja Estrella", key=f"s_{i}")
+                with c1: f = st.toggle("Fatiga", key=f"f_{i}")
+                with c2: s = st.toggle("Bajas", key=f"s_{i}")
                 with c3:
                     if st.button("💎 ANALIZAR", key=f"b_{i}"):
-                        res = calcular_diamond(m, f, s)
-                        st.markdown(f"""
-                        <div style="background:#000; padding:15px; border-radius:10px; border-left:4px solid #ffd700;">
-                            <h2 style="color:#ffd700; margin:0;">🎯 {res['score']}</h2>
-                            <p style="margin:0; font-size:0.9em;">🚩 Corners: {res['corners']}</p>
-                            {f"<div class='value-tag'>🔥 ALERTA DE VALOR</div>" if res['value'] else ""}
-                        </div>
-                        """, unsafe_allow_html=True)
+                        res = motor_diamond(m, f, s)
+                        st.subheader(f"🎯 {res['score']}")
+                        if res['value']: st.warning("🔥 ALERTA DE VALOR")
