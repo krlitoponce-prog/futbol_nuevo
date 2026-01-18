@@ -1,23 +1,16 @@
 import streamlit as st
 import pandas as pd
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
+import cloudscraper
 from bs4 import BeautifulSoup
-import time
+import random
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="Diamond v40.1 - Master Scraper", layout="wide", page_icon="💎")
+st.set_page_config(page_title="Diamond v40.2 - Nube Master", layout="wide", page_icon="💎")
 
 class DiamondScraper:
     def __init__(self):
-        self.chrome_options = Options()
-        self.chrome_options.add_argument("--headless")
-        self.chrome_options.add_argument("--no-sandbox")
-        self.chrome_options.add_argument("--disable-dev-shm-usage")
-        
-        # Mapeo de ligas para ESPN (Rutas exactas)
+        # cloudscraper ayuda a saltar protecciones sin usar Selenium
+        self.scraper = cloudscraper.create_scraper()
         self.ligas_urls = {
             "Alemania 🇩🇪": "ger.1",
             "Inglaterra 🏴󠁧󠁢󠁥󠁮󠁧󠁿": "eng.1",
@@ -31,89 +24,82 @@ class DiamondScraper:
         }
 
     def scrapper_espn(self, liga_slug):
-        """Extrae partidos usando Selenium para saltar bloqueos dinámicos"""
+        """Versión ligera para Streamlit Cloud sin Selenium"""
         url = f"https://www.espn.com.pe/futbol/fixture/_/liga/{liga_slug}"
-        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=self.chrome_options)
-        
         try:
-            driver.get(url)
-            time.sleep(3) # Espera carga de scripts
-            soup = BeautifulSoup(driver.page_source, 'lxml')
-            driver.quit()
-            
+            response = self.scraper.get(url, timeout=10)
+            soup = BeautifulSoup(response.text, 'lxml')
             partidos = []
-            # Selector actualizado para las tablas de ESPN 2026
-            for row in soup.select('tr.Table__TR'):
-                teams = row.select('a.AnchorLink')
-                # Filtramos para obtener solo nombres de equipos (evitar duplicados de logos)
-                nombres = [t.text for t in teams if len(t.text) > 3]
-                if len(nombres) >= 2:
-                    partidos.append({
-                        "home": nombres[0].strip(),
-                        "away": nombres[1].strip(),
-                        "info": row.select_one('td.date__col').text.strip() if row.select_one('td.date__col') else "Previa"
-                    })
+            
+            # Buscamos en las tablas de fixture de ESPN
+            for table in soup.select('.Table__TBODY'):
+                for row in table.select('tr.Table__TR'):
+                    # Extraer equipos y estado
+                    teams = row.select('.Table__Team a')
+                    status = row.select_one('.date__col')
+                    
+                    if len(teams) >= 2:
+                        partidos.append({
+                            "home": teams[0].text.strip(),
+                            "away": teams[1].text.strip(),
+                            "info": status.text.strip() if status else "Previa"
+                        })
             return partidos
         except Exception as e:
-            if driver: driver.quit()
+            st.error(f"Error de conexión: {str(e)}")
             return []
 
-    def escaneo_profundo_transfermarkt(self, equipo):
-        """Busca el valor de mercado y bajas críticas"""
-        # Lógica de mapeo: equipos top tienen mayor penalización por bajas
-        equipos_top = ["Real Madrid", "Bayern", "Man City", "Arsenal", "Inter", "PSG", "Barcelona", "Liverpool"]
-        if equipo in equipos_top:
-            return {"valor_bajas": "Alta", "impacto": 0.20} # 20% de reducción si falta una estrella
-        return {"valor_bajas": "Media", "impacto": 0.08}
-
-# --- MOTOR DE PROBABILIDAD ---
-def motor_diamond(home, away, fatiga, estrellas, scraper):
-    # Base de goles esperados
-    impacto_h = scraper.escaneo_profundo_transfermarkt(home)
-    impacto_a = scraper.escaneo_profundo_transfermarkt(away)
+# --- MOTOR DE PROBABILIDAD (REDISEÑADO) ---
+def motor_diamond(home, away, fatiga, estrellas):
+    # Lógica de impacto basada en potencia de equipo
+    base_h = 1.7 if any(x in home for x in ["City", "Real", "Bayern", "PSG", "Inter"]) else 1.2
+    base_a = 1.0
     
-    # Ajuste por variables de usuario
-    mod_h = (1 - impacto_h['impacto']) if estrellas else 1.0
-    mod_h = mod_h * 0.90 if fatiga else mod_h
+    # Penalizaciones
+    if fatiga: base_h *= 0.85
+    if estrellas: base_h *= 0.80
     
-    g_h = round(1.8 * mod_h)
-    g_a = round(1.2)
+    g_h = round(base_h + random.uniform(-0.3, 0.3))
+    g_a = round(base_a + random.uniform(-0.2, 0.2))
     
     return {
-        "score": f"{g_h} - {g_a}",
-        "corners": "10.5+" if g_h + g_a > 2 else "8.5+",
-        "roja": "ALTA" if "Derbi" in home or "Clásico" in home else "BAJA"
+        "score": f"{max(0, g_h)} - {max(0, g_a)}",
+        "corners": "9.5+" if (g_h + g_a) > 2 else "8.5+",
+        "roja": "ALTA" if fatiga or "Clásico" in home else "MEDIA"
     }
 
 # --- INTERFAZ ---
 sc = DiamondScraper()
 
-st.sidebar.title("💎 DIAMOND v40.1")
+st.sidebar.title("💎 DIAMOND v40.2")
+st.sidebar.info("Modo: Nube (Sin Selenium)")
 liga_sel = st.sidebar.selectbox("Ligas Master", list(sc.ligas_urls.keys()))
 
-if st.button("🚀 Scrapear Cartelera Real"):
-    with st.spinner(f"Escaneando ESPN para {liga_sel}..."):
+if st.button("🚀 Actualizar Cartelera"):
+    with st.spinner(f"Buscando partidos de {liga_sel}..."):
         data = sc.scrapper_espn(sc.ligas_urls[liga_sel])
-        st.session_state['partidos_v40'] = data
+        st.session_state['partidos_v40_2'] = data
 
-if 'partidos_v40' in st.session_state:
-    if not st.session_state['partidos_v40']:
-        st.error("No se detectaron partidos. Revisa la conexión o el slug de la liga.")
+if 'partidos_v40_2' in st.session_state:
+    partidos = st.session_state['partidos_v40_2']
+    if not partidos:
+        st.warning("No se encontraron partidos próximos en ESPN para esta liga.")
     else:
-        for i, p in enumerate(st.session_state['partidos_v40']):
+        st.success(f"Se detectaron {len(partidos)} partidos.")
+        for i, p in enumerate(partidos):
             with st.container(border=True):
                 col1, col2, col3 = st.columns([2, 1, 1])
                 with col1:
                     st.subheader(f"{p['home']} vs {p['away']}")
-                    st.caption(f"📅 {p['info']}")
+                    st.caption(f"📅 Estado: {p['info']}")
                 
                 with col2:
-                    fatiga = st.toggle("Factor Fatiga", key=f"f_{i}")
-                    estrellas = st.toggle("Baja de Estrellas", key=f"e_{i}")
+                    fatiga = st.checkbox("Factor Fatiga", key=f"f_{i}")
+                    estrellas = st.checkbox("Baja Crítica", key=f"e_{i}")
                 
                 with col3:
-                    if st.button("💎 Analizar", key=f"b_{i}"):
-                        res = motor_diamond(p['home'], p['away'], fatiga, estrellas, sc)
-                        st.success(f"🎯 {res['score']}")
-                        st.info(f"🚩 Corners: {res['corners']}")
-                        st.warning(f"🟥 Roja: {res['roja']}")
+                    if st.button("Analizar", key=f"b_{i}"):
+                        res = motor_diamond(p['home'], p['away'], fatiga, estrellas)
+                        st.subheader(f"🎯 {res['score']}")
+                        st.write(f"🚩 Corners: {res['corners']}")
+                        st.write(f"🟥 Roja: {res['roja']}")
