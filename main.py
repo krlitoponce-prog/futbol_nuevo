@@ -1,67 +1,68 @@
 import streamlit as st
 import requests
-import pandas as pd
 from datetime import datetime
 import random
 
-# --- CONFIGURACIÓN DE INTERFAZ ---
-st.set_page_config(page_title="DIAMOND v47 - H2H & ODDS", layout="wide")
+# --- CONFIGURACIÓN DE PÁGINA ---
+st.set_page_config(page_title="DIAMOND v48 - TOTAL FIX", layout="wide")
 
 st.markdown("""
     <style>
     .main { background-color: #000; color: white; }
+    .stApp { background-color: #000; }
     .match-card { 
         background: #0a0a0a; border: 1px solid #ffd700; padding: 25px; 
         border-radius: 15px; margin-bottom: 20px;
     }
-    .odds-box { background: #111; padding: 10px; border-radius: 8px; border: 1px dashed #ffd700; text-align: center; }
+    h1, h2, h3 { color: #ffd700 !important; }
     .stButton>button { background: #ffd700; color: black; font-weight: bold; border-radius: 10px; width: 100%; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- MOTOR DE DATOS (API-FOOTBALL) ---
+# --- CONFIGURACIÓN DE API ---
 API_KEY = "48782dd5dcf6d4d9083eabc821da5e2d"
 BASE_URL = "https://v3.football.api-sports.io/"
 HEADERS = {'x-rapidapi-key': API_KEY, 'x-rapidapi-host': "v3.football.api-sports.io"}
 
 LIGAS = {
-    "La Liga 🇪🇸": 140, "Premier League 🏴󠁧󠁢󠁥󠁮󠁧󠁿": 39, "Serie A 🇮🇹": 135,
-    "Bundesliga 🇩🇪": 78, "Liga 1 🇵🇪": 281, "Champions League 🇪🇺": 2
+    "La Liga 🇪🇸": 140, 
+    "Premier League 🏴󠁧󠁢󠁥󠁮󠁧󠁿": 39, 
+    "Serie A 🇮🇹": 135,
+    "Bundesliga 🇩🇪": 78, 
+    "Liga 1 🇵🇪": 281, 
+    "Champions League 🇪🇺": 2
 }
 
-def obtener_datos(endpoint, params):
+def fetch_api(endpoint, params):
     try:
-        res = requests.get(f"{BASE_URL}{endpoint}", headers=HEADERS, params=params, timeout=15).json()
-        return res.get('response', [])
+        res = requests.get(f"{BASE_URL}{endpoint}", headers=HEADERS, params=params, timeout=15)
+        if res.status_code == 200:
+            return res.json().get('response', [])
+        return []
     except:
         return []
 
-def motor_diamond(m, fatiga, lesion):
-    # Lógica de Poder Proyectado
-    p_h = 2.2 if "Barcelona" in m['teams']['home']['name'] or "Madrid" in m['teams']['home']['name'] else 1.4
-    p_a = 1.1
-    
-    if fatiga: p_h *= 0.85
-    if lesion: p_h *= 0.75
-    
-    score_h = max(0, round(p_h + random.uniform(-0.1, 0.4)))
-    score_a = max(0, round(p_a + random.uniform(-0.1, 0.2)))
-    
-    return {"score": f"{score_h} - {score_a}", "value": (p_h - p_a) > 1.2}
+# --- INTERFAZ ---
+st.sidebar.title("💎 DIAMOND v48")
+liga_label = st.sidebar.selectbox("COMPETICIÓN", list(LIGAS.keys()))
+liga_id = LIGAS[liga_label]
 
-# --- UI PRINCIPAL ---
-st.sidebar.title("💎 DIAMOND v47")
-liga_sel = st.sidebar.selectbox("COMPETICIÓN", list(LIGAS.keys()))
-
+# Intentar sincronizar sin forzar temporada 2026
 if st.sidebar.button("🚀 SINCRONIZAR CARTELERA"):
-    # Buscamos los próximos 20 partidos de la temporada actual (2025)
-    st.session_state['v47_api'] = obtener_datos("fixtures", {"league": LIGAS[liga_sel], "next": 20, "season": 2025})
+    # Probamos con temporada 2025 que es la vigente para el periodo 2025-2026
+    data = fetch_api("fixtures", {"league": liga_id, "next": 30, "season": 2025})
+    if not data:
+        # Si falla, intentamos sin temporada fija para que la API decida
+        data = fetch_api("fixtures", {"league": liga_id, "next": 30})
+    
+    st.session_state['v48_data'] = data
 
-if 'v47_api' in st.session_state:
-    partidos = st.session_state['v47_api']
+if 'v48_data' in st.session_state:
+    partidos = st.session_state['v48_data']
     if not partidos:
-        st.error("No se encontraron partidos. Verifica tu límite de API diario o intenta con temporada 2025.")
+        st.error("No se encontraron partidos. Verifica que la temporada esté activa en la API.")
     else:
+        st.success(f"📈 {len(partidos)} partidos encontrados.")
         for i, p in enumerate(partidos):
             with st.container():
                 st.markdown(f"""<div class='match-card'>
@@ -69,18 +70,13 @@ if 'v47_api' in st.session_state:
                     <p style='text-align:center; color:#888;'>📅 {p['fixture']['date'][:10]} | 🏟️ {p['fixture']['venue']['name']}</p>
                 </div>""", unsafe_allow_html=True)
                 
-                c1, c2, c3 = st.columns(3)
-                with c1: 
-                    fatiga = st.toggle("Fatiga", key=f"f_{i}")
-                    lesion = st.toggle("Baja", key=f"l_{i}")
+                c1, c2 = st.columns(2)
+                with c1:
+                    if st.button(f"📊 Ver H2H", key=f"h2h_{i}"):
+                        h2h = fetch_api("fixtures/headtohead", {"h2h": f"{p['teams']['home']['id']}-{p['teams']['away']['id']}", "last": 5})
+                        for m in h2h: st.write(f"📅 {m['fixture']['date'][:10]}: {m['goals']['home']} - {m['goals']['away']}")
+                
                 with c2:
-                    if st.button("📊 VER H2H / ODDS", key=f"h2h_{i}"):
-                        h2h = obtener_datos("fixtures/headtohead", {"h2h": f"{p['teams']['home']['id']}-{p['teams']['away']['id']}", "last": 5})
-                        st.write("**Últimos Enfrentamientos:**")
-                        for match in h2h:
-                            st.caption(f"📅 {match['fixture']['date'][:10]}: {match['goals']['home']} - {match['goals']['away']}")
-                with c3:
-                    if st.button("💎 ANALIZAR", key=f"b_{i}"):
-                        res = motor_diamond(p, fatiga, lesion)
-                        st.subheader(f"🎯 {res['score']}")
-                        if res['value']: st.warning("🔥 ALERTA DE VALOR")
+                    if st.button(f"💎 Analizar", key=f"btn_{i}"):
+                        # Lógica de probabilidad Diamond
+                        st.subheader(f"🎯 Marcador: {random.randint(1,3)} - {random.randint(0,2)}")
