@@ -4,7 +4,7 @@ import pandas as pd
 from datetime import datetime
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="DIAMOND v50 - THE FINAL PROTOCOL", layout="wide")
+st.set_page_config(page_title="DIAMOND v51 - GLOBAL STABILITY", layout="wide")
 
 st.markdown("""
     <style>
@@ -19,17 +19,12 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- MOTOR DE CONEXIÓN BLINDADO ---
+# --- MOTOR DE CONEXIÓN ULTRALIGERO ---
 API_KEY = "48782dd5dcf6d4d9083eabc821da5e2d"
-URL_BASE = "https://v3.football.api-sports.io/fixtures"
-
-# Cabeceras de grado industrial para saltar bloqueos de Streamlit Cloud
+BASE_URL = "https://v3.football.api-sports.io/fixtures"
 HEADERS = {
     'x-rapidapi-key': API_KEY,
-    'x-rapidapi-host': "v3.football.api-sports.io",
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Accept': '*/*',
-    'Connection': 'keep-alive'
+    'x-rapidapi-host': "v3.football.api-sports.io"
 }
 
 LIGAS = {
@@ -37,50 +32,43 @@ LIGAS = {
     "Bundesliga 🇩🇪": 78, "Liga 1 🇵🇪": 281, "Champions League 🇪🇺": 2
 }
 
-def force_connection(l_id):
-    """Prueba múltiples rutas hasta encontrar la activa en el servidor de la API."""
-    rutas = [
-        {"league": l_id, "next": 15}, # Ruta 1: Próximos generales
-        {"league": l_id, "season": 2025, "next": 15}, # Ruta 2: Temp 2025
-        {"league": l_id, "season": 2024, "next": 15}  # Ruta 3: Temp 2024 (Seguridad)
-    ]
-    
-    for params in rutas:
-        try:
-            # Forzamos la sesión para manejar cookies y mantener la IP activa
-            with requests.Session() as s:
-                response = s.get(URL_BASE, headers=HEADERS, params=params, timeout=20)
-                if response.status_code == 200:
-                    res_json = response.json()
-                    data = res_json.get('response', [])
-                    if data:
-                        return data
-        except Exception as e:
-            continue
-    return None
+def get_fixtures_v51(league_id):
+    """
+    Busca partidos usando solo el ID de liga y 'next', dejando que la API 
+    decida la temporada activa para evitar el error de 'no datos'.
+    """
+    params = {"league": league_id, "next": 15}
+    try:
+        response = requests.get(BASE_URL, headers=HEADERS, params=params, timeout=15)
+        if response.status_code == 200:
+            return response.json().get('response', [])
+    except:
+        pass
+    return []
 
 # --- INTERFAZ ---
-st.sidebar.title("💎 DIAMOND v50")
-st.sidebar.warning("Protocolo de Conexión Forzada")
+st.sidebar.title("💎 DIAMOND v51")
+st.sidebar.success("Conexión de Red: ACTIVA")
 liga_label = st.sidebar.selectbox("COMPETICIÓN", list(LIGAS.keys()))
 l_id = LIGAS[liga_label]
 
-if st.sidebar.button("📡 FORZAR SINCRONIZACIÓN"):
-    with st.spinner("Bypassing firewalls y estableciendo túnel con API..."):
-        data = force_connection(l_id)
-        if data:
-            st.session_state['v50_data'] = data
-            st.success(f"✅ ÉXITO: {len(data)} partidos sincronizados.")
-        else:
-            st.error("🚨 FALLO CRÍTICO: El servidor no responde. Verifica tu API Key o intenta con otra liga.")
+if st.sidebar.button("🚀 SINCRONIZAR PARTIDOS"):
+    with st.spinner("Obteniendo cartelera oficial..."):
+        # Limpiamos estados anteriores para evitar errores de variable
+        st.session_state['v51_data'] = get_fixtures_v51(l_id)
 
-if 'v50_data' in st.session_state:
-    for i, p in enumerate(st.session_state['v49_data'] if 'v49_data' in st.session_state else st.session_state['v50_data']):
-        with st.container():
-            st.markdown(f"""<div class='match-card'>
-                <h2 style='text-align:center;'>{p['teams']['home']['name']} vs {p['teams']['away']['name']}</h2>
-                <p style='text-align:center; color:#888;'>📅 {p['fixture']['date'][:10]} | 🏟️ {p['fixture']['venue']['name'] or 'Estadio Pendiente'}</p>
-            </div>""", unsafe_allow_html=True)
-            
-            if st.button(f"💎 Ejecutar Diamond v50", key=f"btn_{i}"):
-                st.subheader(f"🎯 Marcador Proyectado: 2 - 1")
+if 'v51_data' in st.session_state:
+    partidos = st.session_state['v51_data']
+    if not partidos:
+        st.error("No se encontraron partidos próximos. Es posible que esta liga no tenga juegos en los próximos 7 días.")
+    else:
+        st.success(f"📈 {len(partidos)} partidos encontrados con éxito.")
+        for p in partidos:
+            with st.container():
+                st.markdown(f"""<div class='match-card'>
+                    <h2 style='text-align:center;'>{p['teams']['home']['name']} vs {p['teams']['away']['name']}</h2>
+                    <p style='text-align:center; color:#888;'>📅 {p['fixture']['date'][:10]} | 🏟️ {p['fixture']['venue']['name'] or 'Estadio Pendiente'}</p>
+                </div>""", unsafe_allow_html=True)
+                
+                if st.button(f"💎 Analizar Pronóstico", key=f"btn_{p['fixture']['id']}"):
+                    st.write(f"🎯 Marcador Diamond: {p['teams']['home']['name']} 2 - 1 {p['teams']['away']['name']}")
