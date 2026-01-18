@@ -75,4 +75,34 @@ st.sidebar.image("https://cdn-icons-png.flaticon.com/512/1053/1053915.png", widt
 st.sidebar.title("DIAMOND ELITE v41")
 liga_sel = st.sidebar.selectbox("SELECCIONAR COMPETICIÓN", list(ms.ligas.keys()))
 
-if st.sidebar.button
+if st.sidebar.button("🚀 ACTUALIZAR CARTELERA"):
+    with st.spinner("Escaneando fuentes globales..."):
+        resultados = ms.obtener_datos(ms.ligas[liga_sel])
+        st.session_state['data_v41'] = resultados
+
+if 'data_v41' in st.session_state:
+    partidos = st.session_state['data_v41']
+    if not partidos:
+        st.error("⚠️ Error de conexión con la fuente. Intente actualizar nuevamente.")
+    else:
+        st.success(f"✅ {len(partidos)} partidos analizados con éxito.")
+        
+        for i, p in enumerate(partidos):
+            with st.container():
+                st.markdown(f"""<div class="match-card">
+                    <h3 style='text-align: center; color: #d4af37;'>{p['home']} vs {p['away']}</h3>
+                    <p style='text-align: center; font-size: 0.8em;'>{p['info']}</p>
+                </div>""", unsafe_allow_html=True)
+                
+                c1, c2, c3 = st.columns([1, 1, 1])
+                with c1: fatiga = st.checkbox("🏟️ Doble Torneo/Fatiga", key=f"f_{i}")
+                with c2: bajas = st.checkbox("🚑 Bajas de Estrellas", key=f"b_{i}")
+                with c3: 
+                    if st.button("📊 ANALIZAR", key=f"btn_{i}"):
+                        res = analizar_partido(p['home'], p['away'], fatiga, bajas)
+                        st.markdown("---")
+                        res_cols = st.columns(4)
+                        res_cols[0].metric("🎯 MARCADOR", res['score'])
+                        res_cols[1].metric("🚩 CORNERS", res['corners'])
+                        res_cols[2].metric("🟨 TARJETAS", res['cards'])
+                        res_cols[3].metric("🟥 RIESGO ROJA", res['roja'])
